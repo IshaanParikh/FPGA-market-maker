@@ -1,0 +1,84 @@
+# --- Secrets ---
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+secrets.*
+*_secret*
+*_token*
+*apikey*
+*api_key*
+credentials.json
+
+# --- Editor ---
+.vscode/
+.idea/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Sim artifacts ---
+sim_build/
+obj_dir/
+results.xml
+*.vcd
+*.fst
+*.ghw
+*.vvp
+dump*.vcd
+
+# --- Verilator ---
+verilator.log
+*.verilator.log
+
+# --- Vivado ---
+# Scripts and XDC in syn/ are tracked. Tool droppings are not.
+*.jou
+*.str
+*.backup.log
+.Xil/
+vivado.log
+vivado_*.log
+vivado_pid*.*
+*.cache/
+*.hw/
+*.ip_user_files/
+*.runs/
+*.sim/
+*.gen/
+*.xpr
+*.Xil/
+usage_statistics_webtalk.*
+webtalk*.log
+webtalk*.jou
+fsm_encoding.os
+hs_err_pid*.log
+
+# --- Quartus ---
+db/
+incremental_db/
+output_files/
+qdb/
+*.qws
+*.rpt.bak
+*.qreg
+
+# Reports are the deliverable. Never ignore them.
+!syn/reports/
+!syn/reports/**
+
+# --- OS / editor noise ---
+Thumbs.db
+Desktop.ini
+*~
+*.swp
+.DS_Store

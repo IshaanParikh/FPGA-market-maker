@@ -1,0 +1,5 @@
+# Force LF. make and Verilator run under WSL and break on CRLF.
+* text=auto eol=lf
+
+# Keep Vivado reports byte-exact.
+syn/reports/** -text
