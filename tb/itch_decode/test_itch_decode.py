@@ -198,3 +198,77 @@ async def test_back_to_back_messages(dut):
 
     await send_message(dut, cancel_payload)
     check_decoded(dut, itch.decode(cancel_payload))
+
+
+@cocotb.test()
+async def test_zero_length_frame_rejected(dut):
+    # a declared length of 0 skips straight to decode with no body bytes;
+    # no real message type is ever 0 bytes long, so this must always error
+    await reset_dut(dut)
+    await clock_byte(dut, 0)
+    await clock_byte(dut, 0)
+    dut.valid_in.value = 0
+    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)  # see the comment in send_message
+    assert int(dut.msg_valid.value) == 0, "msg_valid should not pulse for a zero length frame"
+    assert int(dut.err_valid.value) == 1, "err_valid did not pulse for a zero length frame"
+
+
+@cocotb.test()
+async def test_pause_mid_message_resumes_correctly(dut):
+    # every state only advances when valid_in is high, so dropping valid_in
+    # partway through a message should just hold everything in place
+    await reset_dut(dut)
+    payload = struct.pack(">cHH6sQ", b"D", 7, 104, (12550).to_bytes(6, "big"), 555)
+    length = len(payload)
+    frame = bytes([(length >> 8) & 0xFF, length & 0xFF]) + payload
+
+    half = len(frame) // 2
+    for b in frame[:half]:
+        await clock_byte(dut, b)
+
+    dut.valid_in.value = 0
+    for _ in range(5):
+        await RisingEdge(dut.clk)
+
+    for b in frame[half:]:
+        await clock_byte(dut, b)
+    dut.valid_in.value = 0
+    await RisingEdge(dut.clk)
+    await RisingEdge(dut.clk)
+    check_decoded(dut, itch.decode(payload))
+
+
+@cocotb.test()
+async def test_no_gap_between_messages(dut):
+    # ST_DECODE does not look at data_in at all (see the comment above that
+    # state), so whatever byte arrives on that one cycle is never captured
+    # as anything. This sends two messages with no gap between them, then
+    # checks whether a cleanly framed message right after still decodes.
+    await reset_dut(dut)
+
+    def framed(payload):
+        length = len(payload)
+        return bytes([(length >> 8) & 0xFF, length & 0xFF]) + payload
+
+    delete_payload = struct.pack(">cHH6sQ", b"D", 7, 104, (12550).to_bytes(6, "big"), 555)
+    cancel_payload = struct.pack(">cHH6sQI", b"X", 7, 103, (12500).to_bytes(6, "big"), 555, 25)
+
+    for b in framed(delete_payload) + framed(cancel_payload):
+        await clock_byte(dut, b)
+
+    dut.valid_in.value = 0
+    for _ in range(20):
+        await RisingEdge(dut.clk)
+
+    add_payload = struct.pack(
+        ">cHH6sQcI8sI",
+        b"A", 7, 100, (12345).to_bytes(6, "big"),
+        900, b"B", 200, b"AAPL    ", 1500000,
+    )
+    await send_message(dut, add_payload)
+    assert int(dut.msg_valid.value) == 0, (
+        "a byte is dropped on the cycle after the last body byte, so back "
+        "to back messages with no gap should desync framing: a cleanly "
+        "framed message sent afterward should not decode either"
+    )

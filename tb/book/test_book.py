@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 
 import cocotb
@@ -200,3 +201,53 @@ async def test_full_table_is_rejected(dut):
     for i in range(CAPACITY):
         await apply_and_check(dut, model, add(i + 1, "B", 10, 5000 + i))
     await apply_and_check(dut, model, add(999, "B", 10, 6000))
+
+
+@cocotb.test()
+async def test_freed_slot_is_reused(dut):
+    # fills the table, frees one entry (not the first one, so this actually
+    # exercises finding a slot in the middle), then confirms a new order
+    # can take that freed slot instead of being wrongly rejected as full
+    await reset_dut(dut)
+    model = book.OrderBook(capacity=CAPACITY)
+    for i in range(CAPACITY):
+        await apply_and_check(dut, model, add(i + 1, "B", 10, 5000 + i))
+    await apply_and_check(dut, model, delete(2))
+    await apply_and_check(dut, model, add(999, "B", 10, 6000))
+
+
+def random_message(rng, model, next_ref):
+    """One random message plus the next unused order ref to hand out.
+    Mostly targets orders the model currently considers live, but
+    occasionally aims at a made up ref to exercise the error path too."""
+    live = list(model.orders.keys())
+    kind = rng.choice(["add", "add", "exec", "cancel", "delete", "replace"])
+
+    if kind == "add" or not live:
+        msg = add(next_ref, rng.choice("BS"), rng.randint(1, 500), rng.randint(1, 100_000))
+        return msg, next_ref + 1
+
+    ref = rng.choice(live) if rng.random() < 0.85 else rng.randint(1, 1_000_000)
+    if kind == "exec":
+        return execute(ref, rng.randint(1, 600)), next_ref
+    if kind == "cancel":
+        return cancel(ref, rng.randint(1, 600)), next_ref
+    if kind == "delete":
+        return delete(ref), next_ref
+    return replace(ref, next_ref, rng.randint(1, 500), rng.randint(1, 100_000)), next_ref + 1
+
+
+@cocotb.test()
+async def test_random_sequence_matches_model(dut):
+    # throws a long pseudo random mix of adds, executions, cancels,
+    # deletes, and replaces at the DUT and the model side by side, and
+    # checks they agree after every one. A handful of hand picked
+    # scenarios only proves the cases someone thought to write; this
+    # covers interactions between operations that those miss.
+    await reset_dut(dut)
+    model = book.OrderBook(capacity=CAPACITY)
+    rng = random.Random(20260914)
+    next_ref = 1
+    for _ in range(500):
+        msg, next_ref = random_message(rng, model, next_ref)
+        await apply_and_check(dut, model, msg)
