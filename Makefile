@@ -27,12 +27,21 @@ VERILATOR_LINT_FLAGS := --lint-only -Wall --timing
 all: help
 
 # --- Lint -----------------------------------------------------------------
+# Each file is linted on its own, as its own top module: rtl/ holds several
+# independent blocks (decode, book, egress, ...) with no shared top yet, and
+# Verilator refuses to pick one when handed several top modules at once. Any
+# submodule a file instantiates is still found automatically through the -y
+# library dirs in INCDIRS, so this keeps working once rtl/top wires blocks
+# together.
 lint:
 	@if [ -z "$(RTL_SRCS)" ]; then \
 	  echo "lint: no .sv sources under rtl/ yet - nothing to check."; \
 	else \
 	  echo "lint: $(words $(RTL_SRCS)) source(s)"; \
-	  verilator $(VERILATOR_LINT_FLAGS) $(INCDIRS) $(RTL_SRCS); \
+	  for f in $(RTL_SRCS); do \
+	    echo "  - $$f"; \
+	    verilator $(VERILATOR_LINT_FLAGS) $(INCDIRS) $$f || exit 1; \
+	  done; \
 	  echo "lint: clean"; \
 	fi
 
