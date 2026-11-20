@@ -4,7 +4,7 @@
 SHELL := /bin/bash
 
 # --- Layout ---------------------------------------------------------------
-RTL_DIRS := rtl/common rtl/decode rtl/book rtl/egress rtl/top
+RTL_DIRS := rtl/common rtl/decode rtl/book rtl/egress rtl/top rtl/board
 RTL_SRCS := $(sort $(foreach d,$(RTL_DIRS),$(wildcard $(d)/*.sv)))
 INCDIRS  := $(addprefix -y ,$(RTL_DIRS)) $(addprefix -I,$(RTL_DIRS))
 TB_DIRS  := $(patsubst %/,%,$(sort $(dir $(wildcard tb/*/Makefile))))
@@ -22,7 +22,7 @@ BUILD_ROOT ?= $(CURDIR)
 # No -Wno-fatal: warnings must fail the build, not scroll past.
 VERILATOR_LINT_FLAGS := --lint-only -Wall --timing
 
-.PHONY: all lint sim sim-all model-check synth tools-check clean help
+.PHONY: all lint sim sim-all sim-dpl model-check synth synth-quartus tools-check clean help
 
 all: help
 
@@ -94,6 +94,26 @@ synth:
 	fi
 	cd syn && vivado -mode batch -source build.tcl -nojournal -log reports/vivado.log
 
+# --- DueProLogic board (Quartus) ------------------------------------------
+# Both need EPT's Active Transfer library copied into syn/quartus/ept/src/
+# (see the README there), which is why sim-dpl is not part of sim-all.
+# Quartus is a Windows install; from WSL point QUARTUS_SH at the .exe, e.g.
+#   make synth-quartus QUARTUS_SH=/mnt/c/altera_lite/25.1std/quartus/bin64/quartus_sh.exe
+QUARTUS_SH ?= quartus_sh
+CAPACITY   ?= 8
+
+sim-dpl:
+	./syn/quartus/sim/run_dpl_sim.sh
+
+synth-quartus:
+	@if ! command -v $(QUARTUS_SH) >/dev/null 2>&1; then \
+	  echo "synth-quartus: $(QUARTUS_SH) not found, set QUARTUS_SH."; exit 2; \
+	fi
+	$(QUARTUS_SH) -t syn/quartus/build.tcl -capacity $(CAPACITY)
+	mkdir -p syn/reports/quartus
+	cp syn/quartus/output/market_maker_dpl.fit.summary \
+	   syn/quartus/output/market_maker_dpl.sta.summary syn/reports/quartus/
+
 # --- Environment ----------------------------------------------------------
 # Reports what is installed. Does not install anything.
 tools-check:
@@ -118,4 +138,6 @@ help:
 	@echo "make sim-all         full regression"
 	@echo "make model-check     golden model self-test"
 	@echo "make synth           Vivado synth + P&R into syn/reports/"
+	@echo "make sim-dpl         DueProLogic board top through EPT's library (Icarus)"
+	@echo "make synth-quartus   Quartus build for the DueProLogic, .sof + .pof"
 	@echo "make tools-check     report which tools are installed"

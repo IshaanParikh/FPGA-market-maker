@@ -136,11 +136,16 @@ module order_book #(
   logic [63:0] next_order_ref [0:CAPACITY-1];
 
   always_comb begin
-    next_valid     = valid_q;
-    next_side      = side_q;
-    next_price     = price_q;
-    next_shares    = shares_q;
-    next_order_ref = order_ref_q;
+    // copied entry by entry rather than as whole arrays: Icarus does not
+    // support whole unpacked array assignment, and older Quartus front
+    // ends are picky about it too. Same hardware either way.
+    for (int i = 0; i < CAPACITY; i++) begin
+      next_valid[i]     = valid_q[i];
+      next_side[i]      = side_q[i];
+      next_price[i]     = price_q[i];
+      next_shares[i]    = shares_q[i];
+      next_order_ref[i] = order_ref_q[i];
+    end
 
     if (is_add && free_found) begin
       next_valid[free_index]     = 1'b1;
@@ -235,11 +240,13 @@ module order_book #(
       ask_price    <= '0;
       ask_qty      <= '0;
     end else begin
-      valid_q     <= next_valid;
-      side_q      <= next_side;
-      price_q     <= next_price;
-      shares_q    <= next_shares;
-      order_ref_q <= next_order_ref;
+      for (int i = 0; i < CAPACITY; i++) begin
+        valid_q[i]     <= next_valid[i];
+        side_q[i]      <= next_side[i];
+        price_q[i]     <= next_price[i];
+        shares_q[i]    <= next_shares[i];
+        order_ref_q[i] <= next_order_ref[i];
+      end
 
       update_valid <= msg_valid && !next_err;
       err_valid    <= next_err;

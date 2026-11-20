@@ -82,3 +82,12 @@ Desktop.ini
 *~
 *.swp
 .DS_Store
+
+# --- EPT Active Transfer library (EPT's code, copy it in locally) ---
+syn/quartus/ept/*
+!syn/quartus/ept/README.md
+# --- Quartus project files written by syn/quartus/build.tcl ---
+/market_maker_dpl.qpf
+/market_maker_dpl.qsf
+syn/quartus/output/
+syn/quartus/sim/build/
